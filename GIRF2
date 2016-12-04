@@ -1,6 +1,4 @@
-library(tsDyn)
 
-rm(list=ls())
 
 GIRF <- function(res, hor=20, shk=1, shVar = 1, replic=100) {
   #res...estimation result from TVAR
@@ -84,18 +82,18 @@ simTVAR <- function(k, results, dat, horizon, sh, threshV, shvar, history) {
 # Example
 ##########################
 
-#debug(GIRF)
-#debug(simTVAR)
+if(FALSE){
 
+library(tsDyn)
 data(zeroyld)
-data<-zeroyld
 
 #par(mar = rep(2, 4))
-resT <- TVAR(data, lag=2, nthresh=2, thDelay=1, trim=0.1, mTh=1, plot=F)
+resT <- TVAR(zeroyld, lag=2, nthresh=2, thDelay=1, trim=0.1, mTh=1, plot=F)
 #test <- sample(c(1,0), 482, replace=T)
-#res <- TVAR(data, lag=2, nthresh=1, thDelay=1, thVar = test, Thresh=0)
+#res <- TVAR(zeroyld, lag=2, nthresh=1, thDelay=1, thVar = test, Thresh=0)
 
 resGIRF <- GIRF(resT)
 dim(resGIRF)
 plot(cumsum(resGIRF[,2,3]), type='l')
 plot(resGIRF[,2,3], type='l')
+}
