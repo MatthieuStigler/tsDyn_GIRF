@@ -8,7 +8,7 @@ Use:
     library(tsDyn)
     data(zeroyld)
 
-    resT <- TVAR(zeroyld, lag=2, nthresh=2, thDelay=1, trim=0.1, mTh=1, plot=F)
+    resT <- TVAR(zeroyld, lag=2, nthresh=2, thDelay=1, trim=0.1, mTh=1, plot=FALSE)
 
     resGIRF <- GIRF(resT)
     plot(cumsum(resGIRF[,2,3]), type='l')
