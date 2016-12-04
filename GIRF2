@@ -1,0 +1,101 @@
+library(tsDyn)
+
+rm(list=ls())
+
+GIRF <- function(res, hor=20, shk=1, shVar = 1, replic=100) {
+  #res...estimation result from TVAR
+  #hor...impulse response horizon
+  #shk...shock size (in standard deviations)
+  #shVar...shocked Variable
+  #replic...no. bootstrap replications
+  
+  
+  threshV <- which(res$model.specific$transCombin == 1) #which variable is used as threshold variable
+  datS <- res$model[,1:res$k] #get dataset
+  
+  avgDiff <- array(dim = c(hor, ncol(datS), (nrow(datS) - res$lag)), NA) #results for each history will be saved here
+  #simulate over all histories (regime dependence is dealt with in the next step)
+  for (i in 1 : (nrow(datS) - res$lag)) {
+    resultDiff <- lapply(1:replic, simTVAR, res, datS, hor, shk, threshV, shVar, i) #call simTVAR (second function)
+    avgDiff[, , i] <- Reduce("+", resultDiff) / replic #mean of particular history
+  }
+  
+  
+  #Regimes
+  regimes <- regime(res)[(res$lag + 1) : length(regime(res))]
+  
+  #GIRF for regimes (final result)
+  girf <- array(dim = c(hor, ncol(datS), max(regimes)), NA)
+  for (i in 1 : max(regimes)) {
+    selectReg <- avgDiff[, , which(regimes == i)]
+    girf[, , i] <- apply(selectReg, MARGIN=c(1, 2), sum) / dim(selectReg)[3]
+  }
+  
+  return(girf)
+}  
+
+
+#k=1; results=res;dat=datS;horizon=hor;sh=shk;shvar=shVar;history=1;
+simTVAR <- function(k, results, dat, horizon, sh, threshV, shvar, history) {
+  #k...for apply function (index)
+  #dat...data
+  #horizon...impulse response horizon
+  #sh...shock size (in standard deviations)
+  #threshV...which variable is used as threshold Variable
+  #shVar...shocked Variable
+  #history...history of variable
+  
+  
+  #sample bootstrap residuals
+  resid <- matrix(NA, nrow=horizon, ncol=results$k)
+  for (i in 1:results$k) resid[,i] <- sample(results$residuals[,i], size=horizon, replace=TRUE)
+  #resid <- sample(results$residuals, size=horizon * nrow(results$coeffmat), replace=TRUE)
+  #dim(resid) <- c(horizon,nrow(results$coeffmat))
+  
+  #bootstrap residuals for shocked series (same residuals with additional shock at the beginning)
+  shock <- sqrt(var(results$residuals[, shvar])) * sh #shock at t
+  shock <- c(rep(0, shvar-1), shock, rep(0,nrow(results$coeffmat)-shvar))
+  resid_delta <- rbind(resid[1,] + shock, resid[-1,])
+  
+  #simulation without addtional shock --> innov = resid
+  simul <- TVAR.sim(B = results$coeffmat, 
+                    Thresh = results$model.specific$Thresh, 
+                    nthres = results$model.specific$nthresh,
+                    n = horizon, lag = results$lag, include = results$include,
+                    thDelay = results$model.specific$thDelay, mTh = threshV,
+                    starting = dat[history : (history + results$lag - 1), ], innov = resid)
+  
+  #with resid_delta
+  simul_delta <- TVAR.sim(B = results$coeffmat, 
+                          Thresh = results$model.specific$Thresh, 
+                          nthres = results$model.specific$nthresh,
+                          n = horizon, lag = results$lag, include = results$include,
+                          thDelay = results$model.specific$thDelay, mTh = threshV,
+                          starting = dat[history : (history + results$lag - 1), ], innov = resid_delta)
+  
+  diff <- simul_delta - simul
+  
+  return(diff)  
+}
+
+
+
+##########################
+# Example
+##########################
+
+#debug(GIRF)
+#debug(simTVAR)
+
+data(zeroyld)
+data<-zeroyld
+
+#par(mar = rep(2, 4))
+resT <- TVAR(data, lag=2, nthresh=2, thDelay=1, trim=0.1, mTh=1, plot=F)
+#test <- sample(c(1,0), 482, replace=T)
+#res <- TVAR(data, lag=2, nthresh=1, thDelay=1, thVar = test, Thresh=0)
+
+resGIRF <- GIRF(resT)
+dim(resGIRF)
+plot(cumsum(resGIRF[,2,3]), type='l')
+plot(resGIRF[,2,3], type='l')
